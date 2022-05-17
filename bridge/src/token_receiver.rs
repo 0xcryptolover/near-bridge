@@ -4,8 +4,6 @@ use near_sdk::{PromiseOrValue, Balance, serde_json};
 use near_sdk::json_types::{U128};
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 
-pub const VIRTUAL_ACC: &str = "@";
-
 /// Message parameters to receive via token function call.
 #[derive(Serialize, Deserialize)]
 #[serde(crate = "near_sdk::serde")]
