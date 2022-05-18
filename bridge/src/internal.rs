@@ -27,7 +27,7 @@ impl Vault {
                 temp = build_root[..].to_vec();
                 temp.extend_from_slice(&paths[i][..]);
             }
-            build_root = <[u8; 32]>::try_from(env::keccak256(&temp[..]).as_slice());
+            build_root = <[u8; 32]>::try_from(env::keccak256(&temp[..]).as_slice()).unwrap();
         }
         build_root == *root
     }

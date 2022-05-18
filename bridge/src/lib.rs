@@ -180,7 +180,7 @@ impl Vault {
     /// getters
 
     /// get beacon list by height
-    pub fn get_beacons(self, height: u128) -> Vec<String> {
+    pub fn get_beacons(&self, height: u128) -> Vec<String> {
         let get_height_key = self.beacons.lower(&height).unwrap();
         self.beacons.get(&get_height_key).unwrap()
     }
