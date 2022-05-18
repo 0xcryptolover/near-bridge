@@ -28,7 +28,7 @@ impl FungibleTokenReceiver for Vault {
         self.assert_contract_running();
         let token_in = env::predecessor_account_id();
         assert!(msg.is_empty(), INVALID_MESSAGE);
-        // instant swap
+        // shield request
         let message =
             serde_json::from_str::<TokenReceiverMessage>(&msg).expect(ERR28_WRONG_MSG_FORMAT);
         match message {

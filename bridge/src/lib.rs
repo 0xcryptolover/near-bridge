@@ -11,7 +11,7 @@ mod errors;
 
 use std::any::Any;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption, Vector};
+use near_sdk::collections::{LazyOption};
 use near_sdk::json_types::ValidAccountId;
 use near_sdk::{
     env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
@@ -26,7 +26,7 @@ pub struct Vault {
     // mark tx already burn
     pub tx_burn: LookupMap<[u8; 32], bool>,
     // beacon committees
-    pub beacons: TreeMap<u128, Vector<[u8; 64]>>,
+    pub beacons: TreeMap<u128, Vec<[u8; 64]>>,
 }
 
 const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
@@ -36,7 +36,7 @@ impl Vault {
     /// Initializes the beacon list
     #[init]
     pub fn new(
-        beacons: Vector<[u8; 64]>,
+        beacons: Vec<[u8; 64]>,
         height: u128,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
@@ -68,5 +68,30 @@ impl Vault {
                 incognito_address, NEAR_ADDRESS.to_string(), amount
             ).as_bytes(),
         );
+    }
+
+    /// withdraw tokens
+    ///
+    /// submit burn proof to receive token
+
+    pub fn withdraw(
+
+    ) -> bool {
+
+        true
+    }
+
+
+    /// getters
+
+    /// get beacon list by height
+    pub fn get_beacons(self, height: u128) -> Vec<[u8; 64]> {
+        let get_height_key = self.beacons.lower(&height).unwrap();
+        self.beacons.get(&get_height_key).unwrap()
+    }
+
+    /// check tx burn used
+    pub fn get_tx_burn_used(self, tx_id: &[u8; 32]) -> bool {
+        self.tx_burn.get(tx_id).unwrap_or_default()
     }
 }
