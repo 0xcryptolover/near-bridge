@@ -138,10 +138,11 @@ impl Vault {
 
         for i in 0..unshield_info.indexes.len() {
             let (s_r, v) = (hex::decode(unshield_info.signatures[i].clone()).unwrap_or_default(), unshield_info.vs[i]);
+            let index_beacon = unshield_info.indexes[i];
             let beacon_key = beacons[index_beacon as usize].clone();
-            let msg = Message::from_slice(blk.as_slice()).unwrap_or_default();
-            let pub_key = PublicKey::from_slice(&beacon_key[..]).unwrap_or_default();
-            let signature = Signature::from_compact(s_r.as_slice()).unwrap_or_default();
+            let msg = Message::from_slice(blk.as_slice()).unwrap();
+            let pub_key = PublicKey::from_slice(&beacon_key[..]).unwrap();
+            let signature = Signature::from_compact(s_r.as_slice()).unwrap();
             assert!(ecdsa_verification.verify(&msg, &signature, &pub_key).is_err(),
                 INVALID_BEACON_SIGNATURE
             );
