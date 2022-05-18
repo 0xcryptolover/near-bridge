@@ -73,7 +73,6 @@ impl Vault {
     /// withdraw tokens
     ///
     /// submit burn proof to receive token
-
     pub fn withdraw(
 
     ) -> bool {

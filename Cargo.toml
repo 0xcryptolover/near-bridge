@@ -1,28 +1,14 @@
-[package]
-name = "near-bridge"
-version = "0.0.2"
-authors = ["Thactb <thach4567@gmail.com>"]
-edition = "2018"
-
-[dependencies]
-near-sdk = "3.1.0"
-near-sdk-sim = "3.2.0"
-near-contract-standards = "3.1.1"
-
-# remember to include a line for each contract
-near-bridge = { path = "./bridge" }
+[workspace]
+members = [
+  "./bridge",
+]
 
 [profile.release]
 codegen-units = 1
-# Tell `rustc` to optimize for small code size.
+# s = optimize for binary size ("z" would additionally turn off loop vectorization)
 opt-level = "z"
+# link time optimization
 lto = true
 debug = false
 panic = "abort"
 overflow-checks = true
-
-[workspace]
-# remember to include a member for each contract
-members = [
-  "bridge"
-]
