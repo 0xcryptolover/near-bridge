@@ -25,13 +25,19 @@ use arrayref::{array_refs, array_ref};
 
 near_sdk::setup_alloc!();
 
+#[derive(BorshStorageKey, BorshSerialize)]
+pub(crate) enum StorageKey {
+    Transaction,
+    BeaconHeight,
+}
+
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, PanicOnDefault)]
 pub struct Vault {
     // mark tx already burn
     pub tx_burn: LookupMap<[u8; 32], bool>,
     // beacon committees
-    pub beacons: TreeMap<u128, Vec<[u8; 64]>>,
+    pub beacons: TreeMap<u128, Vec<String>>,
 }
 
 const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
@@ -42,14 +48,14 @@ impl Vault {
     /// Initializes the beacon list
     #[init]
     pub fn new(
-        beacons: Vec<[u8; 64]>,
+        beacons: Vec<String>,
         height: u128,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
         assert!(beacons.len().eq(&0), "Invalid beacon list");
         let mut this = Self {
-            tx_burn: LookupMap::new("tx_burn".into()),
-            beacons: TreeMap::new("beacons".into())
+            tx_burn: LookupMap::new(StorageKey::Transaction), 
+            beacons: TreeMap::new(StorageKey::BeaconHeight)
         };
         // insert beacon height and list in tree
         this.beacons.insert(&height, &beacons);
@@ -138,11 +144,13 @@ impl Vault {
 
         for i in 0..unshield_info.indexes.len() {
             let (s_r, v) = (hex::decode(unshield_info.signatures[i].clone()).unwrap_or_default(), unshield_info.vs[i]);
+            let index_beacon = unshield_info.indexes[i];
             let beacon_key = beacons[index_beacon as usize].clone();
-            let msg = Message::from_slice(blk.as_slice()).unwrap_or_default();
-            let pub_key = PublicKey::from_slice(&beacon_key[..]).unwrap_or_default();
-            let signature = Signature::from_compact(s_r.as_slice()).unwrap_or_default();
-            assert!(ecdsa_verification.verify(&msg, &signature, &pub_key).is_err(),
+            let msg = Message::from_slice(blk.as_slice());
+            let beacon_key_byte = hex::decode(beacon_key).unwrap_or_default();
+            let pub_key = PublicKey::from_slice(&beacon_key_byte).unwrap();
+            let signature = Signature::from_compact(s_r.as_slice()).unwrap();
+            assert!(ecdsa_verification.verify(&msg.unwrap(), &signature, &pub_key).is_err(),
                 INVALID_BEACON_SIGNATURE
             );
         }
@@ -150,9 +158,9 @@ impl Vault {
         let height_vec = self.append_at_top(unshield_info.height);
         let mut inst_vec = inst.to_vec();
         inst_vec.extend_from_slice(&height_vec);
-        let inst_hash = <[u8; 32]>::try_from(env::keccak256(inst_vec.as_slice()));
+        let inst_hash = <[u8; 32]>::try_from(env::keccak256(inst_vec.as_slice())).unwrap();
         assert!(!self.instruction_in_merkle_tree(
-            inst_hash,
+            &inst_hash,
             &unshield_info.inst_root,
             &unshield_info.inst_paths,
             &unshield_info.inst_path_is_lefts
@@ -164,11 +172,15 @@ impl Vault {
         true
     }
 
+    pub fn swap_beacon_commitee(
+        &mut self,
+    ) {}
+
 
     /// getters
 
     /// get beacon list by height
-    pub fn get_beacons(self, height: u128) -> Vec<[u8; 64]> {
+    pub fn get_beacons(self, height: u128) -> Vec<String> {
         let get_height_key = self.beacons.lower(&height).unwrap();
         self.beacons.get(&get_height_key).unwrap()
     }
