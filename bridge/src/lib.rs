@@ -48,8 +48,8 @@ impl Vault {
         assert!(!env::state_exists(), "Already initialized");
         assert!(beacons.len().eq(&0), "Invalid beacon list");
         let mut this = Self {
-            tx_burn: LookupMap::new("tx_burn"),
-            beacons: TreeMap::new("beacons")
+            tx_burn: LookupMap::new("tx_burn".into()),
+            beacons: TreeMap::new("beacons".into())
         };
         // insert beacon height and list in tree
         this.beacons.insert(&height, &beacons);

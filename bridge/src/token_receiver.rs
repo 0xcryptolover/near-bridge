@@ -1,5 +1,6 @@
 use crate::*;
 use crate::errors::*;
+use near_sdk::serde::{Serialize, Deserialize};
 use near_sdk::{PromiseOrValue, Balance, serde_json};
 use near_sdk::json_types::{U128};
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
@@ -25,7 +26,6 @@ impl FungibleTokenReceiver for Vault {
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
-        self.assert_contract_running();
         let token_in = env::predecessor_account_id();
         assert!(msg.is_empty(), INVALID_MESSAGE);
         // shield request
