@@ -1,5 +1,4 @@
 use crate::*;
-use near_sdk::serde::{Deserialize, Serialize};
 
 impl Vault {
 
@@ -27,7 +26,7 @@ impl Vault {
                 temp = build_root[..].to_vec();
                 temp.extend_from_slice(&paths[i][..]);
             }
-            build_root = <[u8; 32]>::try_from(env::keccak256(&temp[..]).as_slice());
+            build_root = env::keccak256_array(&temp[..]);
         }
         build_root == *root
     }
@@ -40,27 +39,4 @@ impl Vault {
 
         input_vec
     }
-}
-
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
-#[serde(crate = "near_sdk::serde")]
-pub struct UnshieldRequest {
-    // instruction in bytes
-    pub inst: String,
-    // beacon height
-    pub height: u128,
-    // inst paths to build merkle tree
-    pub inst_paths: Vec<[u8; 32]>,
-    // inst path indicator
-    pub inst_path_is_lefts: Vec<bool>,
-    // instruction root
-    pub inst_root: [u8; 32],
-    // blkData
-    pub blk_data: [u8; 32],
-    // signature index
-    pub indexes: Vec<u8>,
-    // signatures
-    pub signatures: Vec<String>,
-    // v value
-    pub vs: Vec<u8>
 }

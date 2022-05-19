@@ -9,21 +9,37 @@ mod internal;
 mod token_receiver;
 mod errors;
 
-use std::any::Any;
-use std::convert::TryFrom;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::{LazyOption};
-use near_sdk::json_types::ValidAccountId;
 use near_sdk::{
-    env, near_bindgen, AccountId, BorshStorageKey, PanicOnDefault, Promise, PromiseOrValue,
+    env, near_bindgen, BorshStorageKey, PanicOnDefault,
 };
-use near_sdk::collections::{LookupMap, TreeMap, UnorderedSet};
-use secp256k1::{Message, Secp256k1, Signature, PublicKey};
+use near_sdk::serde::{Deserialize, Serialize};
+use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::{INVALID_BEACON_LIST, INVALID_BEACON_SIGNATURE, INVALID_INSTRUCTION, INVALID_KEY_AND_INDEX, INVALID_MERKLE_TREE, INVALID_METADATA, INVALID_NUMBER_OF_SIGS, INVALID_TX_BURN};
-use crate::internal::UnshieldRequest;
 use arrayref::{array_refs, array_ref};
 
-near_sdk::setup_alloc!();
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[serde(crate = "near_sdk::serde")]
+pub struct UnshieldRequest {
+    // instruction in bytes
+    pub inst: String,
+    // beacon height
+    pub height: u128,
+    // inst paths to build merkle tree
+    pub inst_paths: Vec<[u8; 32]>,
+    // inst path indicator
+    pub inst_path_is_lefts: Vec<bool>,
+    // instruction root
+    pub inst_root: [u8; 32],
+    // blkData
+    pub blk_data: [u8; 32],
+    // signature index
+    pub indexes: Vec<u8>,
+    // signatures
+    pub signatures: Vec<String>,
+    // v value
+    pub vs: Vec<u8>
+}
 
 #[derive(BorshStorageKey, BorshSerialize)]
 pub(crate) enum StorageKey {
@@ -74,12 +90,10 @@ impl Vault {
     ) {
         // extract near amount from deposit transaction
         let amount = env::attached_deposit();
-        env::log(
-            format!(
-                "{} {} {}",
-                incognito_address, NEAR_ADDRESS.to_string(), amount
-            ).as_bytes(),
-        );
+        env::log_str(format!(
+            "{} {} {}",
+            incognito_address, NEAR_ADDRESS.to_string(), amount
+        ).as_str());
     }
 
     /// withdraw tokens
@@ -90,7 +104,9 @@ impl Vault {
         unshield_info: UnshieldRequest
     ) -> bool {
         let inst = hex::decode(unshield_info.inst).unwrap_or_default();
-        assert!(inst.len() < LEN, INVALID_INSTRUCTION);
+        if inst.len() < LEN {
+            panic!("{}", INVALID_INSTRUCTION)
+        }
         let inst_ = array_ref![inst, 0, LEN];
         #[allow(clippy::ptr_offset_with_cast)]
         let (
@@ -120,51 +136,62 @@ impl Vault {
         let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
-        assert!((meta_type != 157 && meta_type != 158) || shard_id != 1, INVALID_METADATA);
+        if (meta_type != 157 && meta_type != 158) || shard_id != 1 {
+            panic!("{}", INVALID_METADATA);
+        }
 
-        // verify beacon signature
-        assert!(unshield_info.indexes.len() != unshield_info.signatures.len() ||
-            unshield_info.signatures.len() != unshield_info.vs.len(),
-            INVALID_KEY_AND_INDEX
-        );
+        if unshield_info.indexes.len() != unshield_info.signatures.len() ||
+            unshield_info.signatures.len() != unshield_info.vs.len() {
+            panic!("{}", INVALID_KEY_AND_INDEX);
+        }
 
         let beacons = self.get_beacons(unshield_info.height);
-        assert!(beacons.len().eq(&0), INVALID_BEACON_LIST);
-        assert!(unshield_info.signatures.len() <= beacons.len() * 2 / 3, INVALID_NUMBER_OF_SIGS);
+        if beacons.len().eq(&0) {
+            panic!("{}", INVALID_BEACON_LIST);
+        }
+        if unshield_info.signatures.len() <= beacons.len() * 2 / 3 {
+            panic!("{}", INVALID_NUMBER_OF_SIGS);
+        }
 
         // check tx burn used
-        assert!(self.tx_burn.get(tx_id).unwrap_or_default(), INVALID_TX_BURN);
+        if self.tx_burn.get(tx_id).unwrap_or_default() {
+            panic!("{}", INVALID_TX_BURN);
+        }
         self.tx_burn.insert(tx_id, &true);
 
         let mut blk_data_bytes = unshield_info.blk_data.to_vec();
         blk_data_bytes.extend_from_slice(&unshield_info.inst_root);
         // Get double block hash from instRoot and other data
-        let blk = env::keccak256(env::keccak256(blk_data_bytes.as_slice()).as_slice());
-        let ecdsa_verification = Secp256k1::verification_only();
+        let blk = env::keccak256_array(env::keccak256(blk_data_bytes.as_slice()).as_slice());
 
+        // verify beacon signature
         for i in 0..unshield_info.indexes.len() {
             let (s_r, v) = (hex::decode(unshield_info.signatures[i].clone()).unwrap_or_default(), unshield_info.vs[i]);
             let index_beacon = unshield_info.indexes[i];
             let beacon_key = beacons[index_beacon as usize].clone();
-            let msg = Message::from_slice(blk.as_slice());
-            let beacon_key_byte = hex::decode(beacon_key).unwrap_or_default();
-            let pub_key = PublicKey::from_slice(&beacon_key_byte).unwrap();
-            let signature = Signature::from_compact(s_r.as_slice()).unwrap();
-            assert!(ecdsa_verification.verify(&msg.unwrap(), &signature, &pub_key).is_err(),
-                INVALID_BEACON_SIGNATURE
-            );
+            let recover_key = env::ecrecover(
+                &blk,
+                s_r.as_slice(),
+                v,
+                false,
+            ).unwrap();
+            if !hex::encode(recover_key).eq(beacon_key.as_str()) {
+                panic!("{}", INVALID_BEACON_SIGNATURE);
+            }
         }
         // append block height to instruction
         let height_vec = self.append_at_top(unshield_info.height);
         let mut inst_vec = inst.to_vec();
         inst_vec.extend_from_slice(&height_vec);
-        let inst_hash = <[u8; 32]>::try_from(env::keccak256(inst_vec.as_slice())).unwrap();
-        assert!(!self.instruction_in_merkle_tree(
+        let inst_hash = env::keccak256_array(inst_vec.as_slice());
+        if !self.instruction_in_merkle_tree(
             &inst_hash,
             &unshield_info.inst_root,
             &unshield_info.inst_paths,
             &unshield_info.inst_path_is_lefts
-        ), INVALID_MERKLE_TREE);
+        ) {
+            panic!("{}", INVALID_MERKLE_TREE);
+        }
 
         // todo: transfer token to users.
 
@@ -172,7 +199,7 @@ impl Vault {
         true
     }
 
-    pub fn swap_beacon_commitee(
+    pub fn swap_beacon_committee(
         &mut self,
     ) {}
 
@@ -180,7 +207,7 @@ impl Vault {
     /// getters
 
     /// get beacon list by height
-    pub fn get_beacons(self, height: u128) -> Vec<String> {
+    pub fn get_beacons(&self, height: u128) -> Vec<String> {
         let get_height_key = self.beacons.lower(&height).unwrap();
         self.beacons.get(&get_height_key).unwrap()
     }

@@ -1,9 +1,11 @@
-use crate::*;
-use crate::errors::*;
-use near_sdk::serde::{Serialize, Deserialize};
-use near_sdk::{PromiseOrValue, Balance, serde_json};
-use near_sdk::json_types::{U128};
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
+use near_sdk::serde::{Deserialize, Serialize};
+use near_sdk::{serde_json, PromiseOrValue, env};
+use near_sdk::AccountId;
+use near_sdk::json_types::U128;
+
+use crate::errors::*;
+use crate::*;
 
 /// Message parameters to receive via token function call.
 #[derive(Serialize, Deserialize)]
@@ -22,12 +24,14 @@ impl FungibleTokenReceiver for Vault {
     #[allow(unreachable_code)]
     fn ft_on_transfer(
         &mut self,
-        _sender_id: ValidAccountId,
+        _sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
         let token_in = env::predecessor_account_id();
-        assert!(msg.is_empty(), INVALID_MESSAGE);
+        if msg.is_empty() {
+            panic!("{}", INVALID_MESSAGE)
+        }
         // shield request
         let message =
             serde_json::from_str::<TokenReceiverMessage>(&msg).expect(ERR28_WRONG_MSG_FORMAT);
@@ -35,12 +39,11 @@ impl FungibleTokenReceiver for Vault {
             TokenReceiverMessage::Deposit {
                 incognito_address
             } => {
-                env::log(
+                env::log_str(
                     format!(
                         "{} {} {}",
                         incognito_address, token_in, amount.0
-                    ).as_bytes(),
-                );
+                    ).as_str());
                 // Even if send tokens fails, we don't return funds back to sender.
                 PromiseOrValue::Value(U128(0))
             }
