@@ -8,6 +8,7 @@ NOTES:
 mod internal;
 mod token_receiver;
 mod errors;
+mod utils;
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
@@ -16,13 +17,15 @@ use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract,
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
+use crate::utils::{NEAR_ADDRESS, WITHDRAW_INST_LEN, SWAP_COMMITTEE_INST_LEN};
+use crate::utils::{verify_inst};
 use arrayref::{array_refs, array_ref};
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 use near_sdk::json_types::U128;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
-pub struct UnshieldRequest {
+pub struct InteractRequest {
     // instruction in bytes
     pub inst: String,
     // beacon height
@@ -78,9 +81,6 @@ pub trait VaultContract {
     );
 }
 
-const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
-const LEN: usize = 1 + 1 + 32 + 32 + 32 + 32; // ignore last 32 bytes in instruction
-
 #[near_bindgen]
 impl Vault {
     /// Initializes the beacon list
@@ -128,98 +128,34 @@ impl Vault {
     /// submit burn proof to receive token
     pub fn withdraw(
         &mut self,
-        unshield_info: UnshieldRequest
+        unshield_info: InteractRequest
     ) -> Promise {
+        let beacons = self.get_beacons(unshield_info.height);
+
+        // verify instruction
+        verify_inst(&unshield_info, beacons);
+
+        // parse instruction
         let inst = hex::decode(unshield_info.inst).unwrap_or_default();
-        if inst.len() < LEN {
-            panic!("{}", INVALID_INSTRUCTION)
-        }
-        let inst_ = array_ref![inst, 0, LEN];
+        let inst_ = array_ref![inst, 0, WITHDRAW_INST_LEN];
         #[allow(clippy::ptr_offset_with_cast)]
-        let (
-            meta_type,
-            shard_id,
-            _,
-            token,
-            _,
-            receiver_key,
-            _,
-            unshield_amount,
-            tx_id,
-        ) = array_refs![
-             inst_,
-             1,
-             1,
-             12,
-             20,
-             12,
-             20,
-             24,
-             8,
-             32
-        ];
-        let meta_type = u8::from_le_bytes(*meta_type);
-        let shard_id = u8::from_le_bytes(*shard_id);
-        let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
+        let (meta_type, shard_id, _, token, _, receiver_key, _, unshield_amount, tx_id) =
+            array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
+        let meta_type = u8::from_be_bytes(*meta_type);
+        let shard_id = u8::from_be_bytes(*shard_id);
+        let unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
         if (meta_type != 157 && meta_type != 158) || shard_id != 1 {
             panic!("{}", INVALID_METADATA);
         }
 
-        if unshield_info.indexes.len() != unshield_info.signatures.len() ||
-            unshield_info.signatures.len() != unshield_info.vs.len() {
-            panic!("{}", INVALID_KEY_AND_INDEX);
-        }
-
-        let beacons = self.get_beacons(unshield_info.height);
-        if beacons.len().eq(&0) {
-            panic!("{}", INVALID_BEACON_LIST);
-        }
-        if unshield_info.signatures.len() <= beacons.len() * 2 / 3 {
-            panic!("{}", INVALID_NUMBER_OF_SIGS);
-        }
-
         // check tx burn used
-        if self.tx_burn.get(tx_id).unwrap_or_default() {
+        if self.tx_burn.get(&tx_id).unwrap_or_default() {
             panic!("{}", INVALID_TX_BURN);
         }
-        self.tx_burn.insert(tx_id, &true);
+        self.tx_burn.insert(&tx_id, &true);
 
-        let mut blk_data_bytes = unshield_info.blk_data.to_vec();
-        blk_data_bytes.extend_from_slice(&unshield_info.inst_root);
-        // Get double block hash from instRoot and other data
-        let blk = env::keccak256_array(env::keccak256(blk_data_bytes.as_slice()).as_slice());
-
-        // verify beacon signature
-        for i in 0..unshield_info.indexes.len() {
-            let (s_r, v) = (hex::decode(unshield_info.signatures[i].clone()).unwrap_or_default(), unshield_info.vs[i]);
-            let index_beacon = unshield_info.indexes[i];
-            let beacon_key = beacons[index_beacon as usize].clone();
-            let recover_key = env::ecrecover(
-                &blk,
-                s_r.as_slice(),
-                v,
-                false,
-            ).unwrap();
-            if !hex::encode(recover_key).eq(beacon_key.as_str()) {
-                panic!("{}", INVALID_BEACON_SIGNATURE);
-            }
-        }
-        // append block height to instruction
-        let height_vec = self.append_at_top(unshield_info.height);
-        let mut inst_vec = inst.to_vec();
-        inst_vec.extend_from_slice(&height_vec);
-        let inst_hash = env::keccak256_array(inst_vec.as_slice());
-        if !self.instruction_in_merkle_tree(
-            &inst_hash,
-            &unshield_info.inst_root,
-            &unshield_info.inst_paths,
-            &unshield_info.inst_path_is_lefts
-        ) {
-            panic!("{}", INVALID_MERKLE_TREE);
-        }
-        // todo: update account and token address
         let account: AccountId = AccountId::try_from(hex::encode(receiver_key)).unwrap();
 
         if hex::encode(token) == NEAR_ADDRESS {
@@ -240,7 +176,47 @@ impl Vault {
 
     pub fn swap_beacon_committee(
         &mut self,
-    ) {}
+        swap_info: InteractRequest
+    ) -> bool {
+        let beacons = self.get_beacons(swap_info.height);
+
+        // verify instruction
+        verify_inst(&swap_info, beacons);
+
+        // parse instruction
+        let inst = hex::decode(swap_info.inst).unwrap_or_default();
+        let inst_ = array_ref![inst, 0, SWAP_COMMITTEE_INST_LEN];
+        #[allow(clippy::ptr_offset_with_cast)]
+        let (meta_type, shard_id, _, prev_height, _, height, _, num_vals) =
+            array_refs![inst_, 1, 1, 16, 16, 16, 16, 16, 16];
+        let meta_type = u8::from_be_bytes(*meta_type);
+        let shard_id = u8::from_be_bytes(*shard_id);
+        let prev_height = u128::from_be_bytes(*prev_height);
+        let height = u128::from_be_bytes(*height);
+        let num_vals = u128::from_be_bytes(*num_vals);
+
+        let mut beacons: Vec<String> = vec![];
+        for i in 0..num_vals {
+            let index = i as usize;
+            let beacon_key = array_ref![inst, SWAP_COMMITTEE_INST_LEN + index * 32, 32];
+            let beacon = hex::encode(beacon_key);
+            beacons.push(beacon);
+        }
+
+        // validate metatype and key provided
+        if meta_type != 159 || shard_id != 1 {
+            panic!("{}", INVALID_METADATA);
+        }
+
+        let my_latest_commitee_height = self.beacons.max().unwrap_or_default();
+        assert!(prev_height != my_latest_commitee_height, "{}", PREV_COMMITTEE_HEIGHT_MISMATCH);
+        assert!(height <= my_latest_commitee_height, "{}", COMMITTEE_HEIGHT_MISMATCH);
+
+        // swap committee
+        self.beacons.insert(&height, &beacons);
+
+        true
+    }
 
 
     /// getters

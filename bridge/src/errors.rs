@@ -9,3 +9,5 @@ pub const INVALID_BEACON_SIGNATURE: &str = "Invalid beacon signature";
 pub const INVALID_TX_BURN: &str = "Transaction burn already used";
 pub const INVALID_MERKLE_TREE: &str = "merkle tree root is not match";
 pub const VALUE_EXCEEDED: &str = "the total balance greater than max shield value";
+pub const PREV_COMMITTEE_HEIGHT_MISMATCH: &str = "Previous committee height mismatch";
+pub const COMMITTEE_HEIGHT_MISMATCH: &str = "Committee height mismatch";
