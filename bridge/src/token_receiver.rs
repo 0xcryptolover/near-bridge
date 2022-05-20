@@ -1,6 +1,6 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{serde_json, PromiseOrValue, env};
+use near_sdk::{serde_json, PromiseOrValue, env, ext_contract};
 use near_sdk::AccountId;
 use near_sdk::json_types::U128;
 
@@ -25,7 +25,7 @@ impl FungibleTokenReceiver for Vault {
     fn ft_on_transfer(
         &mut self,
         _sender_id: AccountId,
-        amount: U128,
+        value: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
         let token_in = env::predecessor_account_id();
@@ -39,10 +39,11 @@ impl FungibleTokenReceiver for Vault {
             TokenReceiverMessage::Deposit {
                 incognito_address
             } => {
+                let amount = value.0;
                 env::log_str(
                     format!(
                         "{} {} {}",
-                        incognito_address, token_in, amount.0
+                        incognito_address, token_in, amount
                     ).as_str());
                 // Even if send tokens fails, we don't return funds back to sender.
                 PromiseOrValue::Value(U128(0))

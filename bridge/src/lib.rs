@@ -11,12 +11,13 @@ mod errors;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{
-    env, near_bindgen, BorshStorageKey, PanicOnDefault,
+    env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract
 };
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
-use crate::errors::{INVALID_BEACON_LIST, INVALID_BEACON_SIGNATURE, INVALID_INSTRUCTION, INVALID_KEY_AND_INDEX, INVALID_MERKLE_TREE, INVALID_METADATA, INVALID_NUMBER_OF_SIGS, INVALID_TX_BURN};
+use crate::errors::*;
 use arrayref::{array_refs, array_ref};
+use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -56,6 +57,19 @@ pub struct Vault {
     pub beacons: TreeMap<u128, Vec<String>>,
 }
 
+// define the methods we'll use on ContractB
+#[ext_contract(ext_ft)]
+pub trait FtContract {
+    fn ft_metadata(&self) -> FungibleTokenMetadata;
+    fn ft_balance_of(&self) -> String;
+}
+
+// define methods we'll use as callbacks on ContractA
+#[ext_contract(ext_self)]
+pub trait VaultContract {
+    fn deposit_ft_callback(&self) -> String;
+}
+
 const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
 const LEN: usize = 1 + 1 + 32 + 32 + 32 + 32; // ignore last 32 bytes in instruction
 
@@ -89,7 +103,7 @@ impl Vault {
         incognito_address: String,
     ) {
         // extract near amount from deposit transaction
-        let amount = env::attached_deposit();
+        let amount = env::attached_deposit().checked_div(1e15 as u128).unwrap_or(0);
         env::log_str(format!(
             "{} {} {}",
             incognito_address, NEAR_ADDRESS.to_string(), amount
@@ -194,7 +208,6 @@ impl Vault {
         }
 
         // todo: transfer token to users.
-
 
         true
     }
