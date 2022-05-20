@@ -9,15 +9,16 @@ mod internal;
 mod token_receiver;
 mod errors;
 
+use std::cmp::Ordering;
+use std::convert::TryFrom;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{
-    env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract
-};
+use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, PromiseOrValue, Gas, Promise};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
 use arrayref::{array_refs, array_ref};
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
+use near_sdk::json_types::U128;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -61,13 +62,20 @@ pub struct Vault {
 #[ext_contract(ext_ft)]
 pub trait FtContract {
     fn ft_metadata(&self) -> FungibleTokenMetadata;
-    fn ft_balance_of(&self) -> String;
+    fn ft_balance_of(&mut self, account_id: AccountId) -> U128;
+    fn ft_transfer(&mut self, receiver_id: AccountId, amount: U128, memo: Option<String>);
 }
 
 // define methods we'll use as callbacks on ContractA
 #[ext_contract(ext_self)]
 pub trait VaultContract {
-    fn deposit_ft_callback(&self) -> String;
+    fn fallback_deposit(
+        &self,
+        incognito_address: String,
+        account: AccountId,
+        token: AccountId,
+        amount: u128,
+    );
 }
 
 const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
@@ -102,6 +110,11 @@ impl Vault {
         &mut self,
         incognito_address: String,
     ) {
+        let total_native = env::account_balance();
+        if total_native.checked_div(1e15 as u128).unwrap_or_default().cmp(&(u64::MAX as u128)) == Ordering::Greater {
+            panic!("{}", VALUE_EXCEEDED);
+        }
+
         // extract near amount from deposit transaction
         let amount = env::attached_deposit().checked_div(1e15 as u128).unwrap_or(0);
         env::log_str(format!(
@@ -116,7 +129,7 @@ impl Vault {
     pub fn withdraw(
         &mut self,
         unshield_info: UnshieldRequest
-    ) -> bool {
+    ) -> Promise {
         let inst = hex::decode(unshield_info.inst).unwrap_or_default();
         if inst.len() < LEN {
             panic!("{}", INVALID_INSTRUCTION)
@@ -206,10 +219,23 @@ impl Vault {
         ) {
             panic!("{}", INVALID_MERKLE_TREE);
         }
+        // todo: update account and token address
+        let account: AccountId = AccountId::try_from(hex::encode(receiver_key)).unwrap();
 
-        // todo: transfer token to users.
-
-        true
+        if hex::encode(token) == NEAR_ADDRESS {
+            Promise::new(account).transfer(unshield_amount)
+        } else {
+            // todo: update account and token address
+            let token: AccountId = AccountId::try_from(hex::encode(token)).unwrap();
+            ext_ft::ft_transfer(
+                account,
+                U128(unshield_amount),
+                None,
+                token,
+                0,
+                Gas(5_000_000_000),
+            ).into()
+        }
     }
 
     pub fn swap_beacon_committee(
@@ -221,12 +247,59 @@ impl Vault {
 
     /// get beacon list by height
     pub fn get_beacons(&self, height: u128) -> Vec<String> {
-        let get_height_key = self.beacons.lower(&height).unwrap();
+        let get_height_key = self.beacons.lower(&(height + 1)).unwrap();
         self.beacons.get(&get_height_key).unwrap()
     }
 
     /// check tx burn used
     pub fn get_tx_burn_used(self, tx_id: &[u8; 32]) -> bool {
         self.tx_burn.get(tx_id).unwrap_or_default()
+    }
+
+    /// fallbacks
+    pub fn fallback_deposit(&self, incognito_addr: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
+        assert_eq!(env::promise_results_count(), 2, "This is a callback method");
+
+        // handle the result from the second cross contract call this method is a callback for
+        let token_meta_data: FungibleTokenMetadata = match env::promise_result(0) {
+            PromiseResult::NotReady => unreachable!(),
+            PromiseResult::Failed => panic!("{:?}", b"Unable to make comparison"),
+            PromiseResult::Successful(result) => near_sdk::serde_json::from_slice::<FungibleTokenMetadata>(&result)
+                .unwrap()
+                .into(),
+        };
+
+        // handle the result from the first cross contract call this method is a callback for
+        let vault_acc_balance: u128 = match env::promise_result(1) {
+            PromiseResult::NotReady => unreachable!(),
+            PromiseResult::Failed => panic!("{:?}", b"Unable to make comparison"),
+            PromiseResult::Successful(result) => near_sdk::serde_json::from_slice::<U128>(&result)
+                .unwrap()
+                .into(),
+        };
+
+        if vault_acc_balance.cmp(&(u64::MAX as u128)) == Ordering::Greater {
+            return ext_ft::ft_transfer(
+                    account,
+                    U128(amount),
+                    None,
+                    token,
+                    0,
+                    Gas(5_000_000_000),
+                ).into();
+        }
+
+        let mut emit_amount = amount;
+        if token_meta_data.decimals > 9 {
+            emit_amount = amount.checked_div(u128::pow(10, (token_meta_data.decimals - 9) as u32)).unwrap_or_default();
+        }
+
+        env::log_str(
+            format!(
+                "{} {} {}",
+                incognito_addr, token, emit_amount
+            ).as_str());
+
+        PromiseOrValue::Value(U128(0))
     }
 }

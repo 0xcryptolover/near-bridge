@@ -1,6 +1,6 @@
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::serde::{Deserialize, Serialize};
-use near_sdk::{serde_json, PromiseOrValue, env, ext_contract};
+use near_sdk::{serde_json, env, PromiseOrValue, Gas};
 use near_sdk::AccountId;
 use near_sdk::json_types::U128;
 
@@ -40,13 +40,26 @@ impl FungibleTokenReceiver for Vault {
                 incognito_address
             } => {
                 let amount = value.0;
-                env::log_str(
-                    format!(
-                        "{} {} {}",
-                        incognito_address, token_in, amount
-                    ).as_str());
-                // Even if send tokens fails, we don't return funds back to sender.
-                PromiseOrValue::Value(U128(0))
+                ext_ft::ft_metadata(
+                    token_in.clone(),
+                    0,
+                    Gas(5_000_000_000_000),          // gas to attach
+                )
+                .and(ext_ft::ft_balance_of(
+                    env::current_account_id().clone(),
+                    token_in.clone(),
+                    0,
+                    Gas(5_000_000_000_000),         // gas to attach
+                ))
+                .then(ext_self::fallback_deposit(
+                    incognito_address,
+                    _sender_id,
+                    token_in,
+                    amount,
+                    env::current_account_id().clone(),
+                    0,
+                    Gas(5_000_000_000_000),          // gas to attach to the callback
+                )).into()
             }
         }
     }
