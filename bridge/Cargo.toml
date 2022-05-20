@@ -2,7 +2,7 @@
 name = "bridge"
 version = "0.0.1"
 authors = ["Cuong Thach Sam Corp"]
-edition = "2022"
+edition = "2018"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
