@@ -5,7 +5,6 @@ NOTES:
   - Swap beacon
 */
 
-mod internal;
 mod token_receiver;
 mod errors;
 mod utils;
