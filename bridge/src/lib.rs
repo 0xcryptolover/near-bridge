@@ -23,7 +23,7 @@ use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
-pub struct UnshieldRequest {
+pub struct InteractRequest {
     // instruction in bytes
     pub inst: String,
     // beacon height
@@ -114,12 +114,22 @@ impl Vault {
     /// submit burn proof to receive token
     pub fn withdraw(
         &mut self,
-        unshield_info: UnshieldRequest
+        unshield_info: InteractRequest
     ) -> bool {
         let beacons = self.get_beacons(unshield_info.height);
 
+        // verify instruction
+        verify_inst(&unshield_info, beacons);
+
         // parse instruction
-        let (meta_type, shard_id, token, receiver_key, unshield_amount, tx_id) = verify_inst(unshield_info, beacons);
+        let inst = hex::decode(unshield_info.inst).unwrap_or_default();
+        let inst_ = array_ref![inst, 0, LEN];
+        #[allow(clippy::ptr_offset_with_cast)]
+        let (meta_type, shard_id, _, token, _, receiver_key, _, unshield_amount, tx_id) =
+            array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
+        let meta_type = u8::from_le_bytes(*meta_type);
+        let shard_id = u8::from_le_bytes(*shard_id);
+        let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
         if (meta_type != 157 && meta_type != 158) || shard_id != 1 {
@@ -140,7 +150,15 @@ impl Vault {
 
     pub fn swap_beacon_committee(
         &mut self,
-    ) {}
+        swap_info: InteractRequest
+    ) {
+        let beacons = self.get_beacons(swap_info.height);
+
+        // verify instruction
+        verify_inst(&swap_info, beacons);
+        
+        // todo: parse instruction
+    }
 
 
     /// getters
