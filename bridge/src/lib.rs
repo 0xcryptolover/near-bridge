@@ -16,7 +16,7 @@ use near_sdk::{
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
-use crate::utils::{NEAR_ADDRESS, LEN};
+use crate::utils::{NEAR_ADDRESS, WITHDRAW_INST_LEN, SWAP_COMMITTEE_INST_LEN};
 use crate::utils::{verify_inst};
 use arrayref::{array_refs, array_ref};
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
@@ -123,13 +123,13 @@ impl Vault {
 
         // parse instruction
         let inst = hex::decode(unshield_info.inst).unwrap_or_default();
-        let inst_ = array_ref![inst, 0, LEN];
+        let inst_ = array_ref![inst, 0, WITHDRAW_INST_LEN];
         #[allow(clippy::ptr_offset_with_cast)]
         let (meta_type, shard_id, _, token, _, receiver_key, _, unshield_amount, tx_id) =
             array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
-        let meta_type = u8::from_le_bytes(*meta_type);
-        let shard_id = u8::from_le_bytes(*shard_id);
-        let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
+        let meta_type = u8::from_be_bytes(*meta_type);
+        let shard_id = u8::from_be_bytes(*shard_id);
+        let unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
         if (meta_type != 157 && meta_type != 158) || shard_id != 1 {
@@ -151,13 +151,45 @@ impl Vault {
     pub fn swap_beacon_committee(
         &mut self,
         swap_info: InteractRequest
-    ) {
+    ) -> bool {
         let beacons = self.get_beacons(swap_info.height);
 
         // verify instruction
         verify_inst(&swap_info, beacons);
         
-        // todo: parse instruction
+        // parse instruction
+        let inst = hex::decode(swap_info.inst).unwrap_or_default();
+        let inst_ = array_ref![inst, 0, SWAP_COMMITTEE_INST_LEN];
+        #[allow(clippy::ptr_offset_with_cast)]
+        let (meta_type, shard_id, _, prev_height, _, height, _, num_vals) =
+            array_refs![inst_, 1, 1, 16, 16, 16, 16, 16, 16];
+        let meta_type = u8::from_be_bytes(*meta_type);
+        let shard_id = u8::from_be_bytes(*shard_id);
+        let prev_height = u128::from_be_bytes(*prev_height);
+        let height = u128::from_be_bytes(*height);
+        let num_vals = u128::from_be_bytes(*num_vals);
+
+        let mut beacons: Vec<String> = vec![];
+        for i in 0..num_vals {
+            let index = i as usize;
+            let beacon_key = array_ref![inst, SWAP_COMMITTEE_INST_LEN + index * 32, 32];
+            let beacon = hex::encode(beacon_key);
+            beacons.push(beacon);
+        }   
+
+        // validate metatype and key provided
+        if meta_type != 159 || shard_id != 1 {
+            panic!("{}", INVALID_METADATA);
+        }
+
+        let my_latest_commitee_height = self.beacons.max().unwrap_or_default();
+        assert!(prev_height != my_latest_commitee_height, "{}", PREV_COMMITTEE_HEIGHT_MISMATCH);
+        assert!(height <= my_latest_commitee_height, "{}", COMMITTEE_HEIGHT_MISMATCH);
+
+        // swap committee
+        self.beacons.insert(&height, &beacons);
+
+        true
     }
 
 

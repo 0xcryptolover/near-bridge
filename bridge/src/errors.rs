@@ -7,4 +7,6 @@ pub const INVALID_BEACON_LIST: &str = "Beacons is empty";
 pub const INVALID_NUMBER_OF_SIGS: &str = "The total signature must reach majority of beacon list";
 pub const INVALID_BEACON_SIGNATURE: &str = "Invalid beacon signature";
 pub const INVALID_TX_BURN: &str = "Transaction burn already used";
-pub const INVALID_MERKLE_TREE: &str = "merkle tree root is not match";
+pub const INVALID_MERKLE_TREE: &str = "Merkle tree root is not match";
+pub const PREV_COMMITTEE_HEIGHT_MISMATCH: &str = "Previous committee height mismatch";
+pub const COMMITTEE_HEIGHT_MISMATCH: &str = "Committee height mismatch";

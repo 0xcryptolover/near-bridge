@@ -3,17 +3,12 @@ use near_sdk::{env};
 use arrayref::{array_ref, array_refs};
 
 pub const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000000";
-pub const LEN: usize = 1 + 1 + 32 + 32 + 32 + 32; // ignore last 32 bytes in instruction
+pub const WITHDRAW_INST_LEN: usize = 1 + 1 + 32 + 32 + 32 + 32; // ignore last 32 bytes in instruction
+pub const SWAP_COMMITTEE_INST_LEN: usize = 1 + 1 + 32 + 32 + 32;
 
 pub fn verify_inst(
     request_info: &InteractRequest, beacons: Vec<String>,
 ) {
-    let inst = hex::decode(&request_info.inst).unwrap_or_default();
-    if inst.len() < LEN {
-        panic!("{}", INVALID_INSTRUCTION)
-    }
-    
-
     if request_info.indexes.len() != request_info.signatures.len()
         || request_info.signatures.len() != request_info.vs.len()
     {
@@ -49,7 +44,7 @@ pub fn verify_inst(
         }
         // append block height to instruction
         let height_vec = append_at_top(request_info.height);
-        let mut inst_vec = inst.to_vec();
+        let mut inst_vec = hex::decode(&request_info.inst).unwrap_or_default();
         inst_vec.extend_from_slice(&height_vec);
         let inst_hash = env::keccak256_array(inst_vec.as_slice());
         if !instruction_in_merkle_tree(
