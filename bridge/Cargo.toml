@@ -1,8 +1,8 @@
 [package]
-name = "brigde"
+name = "bridge"
 version = "0.0.1"
 authors = ["Cuong Thach Sam Corp"]
-edition = "2018"
+edition = "2022"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
