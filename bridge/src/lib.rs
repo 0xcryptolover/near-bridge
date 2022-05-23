@@ -245,13 +245,19 @@ impl Vault {
         };
 
         // handle the result from the first cross contract call this method is a callback for
-        let vault_acc_balance: u128 = match env::promise_result(1) {
+        let mut vault_acc_balance: u128 = match env::promise_result(1) {
             PromiseResult::NotReady => unreachable!(),
             PromiseResult::Failed => panic!("{:?}", b"Unable to make comparison"),
             PromiseResult::Successful(result) => near_sdk::serde_json::from_slice::<U128>(&result)
                 .unwrap()
                 .into(),
         };
+
+        let mut emit_amount = amount;
+        if token_meta_data.decimals > 9 {
+            emit_amount = amount.checked_div(u128::pow(10, (token_meta_data.decimals - 9) as u32)).unwrap_or_default();
+            vault_acc_balance = vault_acc_balance.checked_div(u128::pow(10, (token_meta_data.decimals - 9) as u32)).unwrap_or_default();
+        }
 
         if vault_acc_balance.cmp(&(u64::MAX as u128)) == Ordering::Greater {
             return ext_ft::ft_transfer(
@@ -262,11 +268,6 @@ impl Vault {
                     0,
                     Gas(5_000_000_000),
                 ).into();
-        }
-
-        let mut emit_amount = amount;
-        if token_meta_data.decimals > 9 {
-            emit_amount = amount.checked_div(u128::pow(10, (token_meta_data.decimals - 9) as u32)).unwrap_or_default();
         }
 
         env::log_str(
