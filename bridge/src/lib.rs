@@ -16,7 +16,7 @@ use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract,
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
-use crate::utils::{NEAR_ADDRESS, WITHDRAW_INST_LEN, SWAP_COMMITTEE_INST_LEN};
+use crate::utils::{NEAR_ADDRESS, WITHDRAW_INST_LEN, SWAP_COMMITTEE_INST_LEN, WITHDRAW_METADATA, SWAP_BEACON_METADATA, BURN_METADATA};
 use crate::utils::{verify_inst};
 use arrayref::{array_refs, array_ref};
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
@@ -49,6 +49,8 @@ pub struct InteractRequest {
 pub(crate) enum StorageKey {
     Transaction,
     BeaconHeight,
+    TokenAccountID,
+    TokenUserAccountID,
 }
 
 #[near_bindgen]
@@ -58,6 +60,10 @@ pub struct Vault {
     pub tx_burn: LookupMap<[u8; 32], bool>,
     // beacon committees
     pub beacons: TreeMap<u128, Vec<String>>,
+    // total withdraw request
+    pub total_credit_amount: LookupMap<String, u128>,
+    // total credit amount for each account
+    pub credit_amount: LookupMap<(String, String), u128>,
 }
 
 // define the methods we'll use on ContractB
@@ -92,7 +98,9 @@ impl Vault {
         assert!(beacons.len().eq(&0), "Invalid beacon list");
         let mut this = Self {
             tx_burn: LookupMap::new(StorageKey::Transaction), 
-            beacons: TreeMap::new(StorageKey::BeaconHeight)
+            beacons: TreeMap::new(StorageKey::BeaconHeight),
+            total_credit_amount: LookupMap::new(StorageKey::TokenAccountID),
+            credit_amount: LookupMap::new(StorageKey::TokenUserAccountID),
         };
         // insert beacon height and list in tree
         this.beacons.insert(&height, &beacons);
@@ -145,7 +153,7 @@ impl Vault {
         let unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
-        if (meta_type != 157 && meta_type != 158) || shard_id != 1 {
+        if (meta_type != WITHDRAW_METADATA) || shard_id != 1 {
             panic!("{}", INVALID_METADATA);
         }
 
@@ -173,6 +181,9 @@ impl Vault {
         }
     }
 
+    /// swap beacon committee
+    ///
+    /// verify old beacon committee's signature and update new beacon committee
     pub fn swap_beacon_committee(
         &mut self,
         swap_info: InteractRequest
@@ -203,7 +214,7 @@ impl Vault {
         }
 
         // validate metatype and key provided
-        if meta_type != 159 || shard_id != 1 {
+        if meta_type != SWAP_BEACON_METADATA || shard_id != 1 {
             panic!("{}", INVALID_METADATA);
         }
 
@@ -216,6 +227,50 @@ impl Vault {
 
         true
     }
+
+
+    // submit burn proof
+    //
+    // prepare fund to call contract
+    pub fn submit_burn_proof(
+        &mut self,
+        burn_info: InteractRequest
+    ) {
+        let beacons = self.get_beacons(burn_info.height);
+
+        // verify instruction
+        verify_inst(&burn_info, beacons);
+
+        // parse instruction
+        let inst = hex::decode(burn_info.inst).unwrap_or_default();
+        let inst_ = array_ref![inst, 0, WITHDRAW_INST_LEN];
+        #[allow(clippy::ptr_offset_with_cast)]
+        let (meta_type, shard_id, _, token, _, receiver_key, _, burn_amount, tx_id) =
+            array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
+        let meta_type = u8::from_be_bytes(*meta_type);
+        let shard_id = u8::from_be_bytes(*shard_id);
+        let burn_amount = u128::from(u64::from_be_bytes(*burn_amount));
+
+        // validate metatype and key provided
+        if (meta_type != BURN_METADATA) || shard_id != 1 {
+            panic!("{}", INVALID_METADATA);
+        }
+
+        // check tx burn used
+        if self.tx_burn.get(&tx_id).unwrap_or_default() {
+            panic!("{}", INVALID_TX_BURN);
+        }
+        self.tx_burn.insert(&tx_id, &true);
+
+        let token: AccountId = AccountId::try_from(hex::encode(token)).unwrap();
+        let account: AccountId = AccountId::try_from(hex::encode(receiver_key)).unwrap();
+
+        let amount = self.total_credit_amount.get(&token.to_string()).unwrap_or_default();
+        self.total_credit_amount.insert(&token.to_string(), &(amount + burn_amount));
+        let amount = self.credit_amount.get(&(token.to_string(), account.to_string())).unwrap_or_default();
+        self.credit_amount.insert(&(token.to_string(), account.to_string()), &(amount + burn_amount));
+    }
+
 
 
     /// getters
