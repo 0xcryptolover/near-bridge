@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "./bridge",
+  "./proxy",
 ]
 
 [profile.release]
