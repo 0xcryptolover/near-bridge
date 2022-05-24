@@ -95,7 +95,7 @@ impl Vault {
         height: u128,
     ) -> Self {
         assert!(!env::state_exists(), "Already initialized");
-        assert!(beacons.len().eq(&0), "Invalid beacon list");
+        assert!(!beacons.len().eq(&0), "Invalid beacon list");
         let mut this = Self {
             tx_burn: LookupMap::new(StorageKey::Transaction), 
             beacons: TreeMap::new(StorageKey::BeaconHeight),
@@ -219,8 +219,8 @@ impl Vault {
         }
 
         let my_latest_commitee_height = self.beacons.max().unwrap_or_default();
-        assert!(prev_height != my_latest_commitee_height, "{}", PREV_COMMITTEE_HEIGHT_MISMATCH);
-        assert!(height <= my_latest_commitee_height, "{}", COMMITTEE_HEIGHT_MISMATCH);
+        assert!(prev_height.eq(&my_latest_commitee_height), "{}", PREV_COMMITTEE_HEIGHT_MISMATCH);
+        assert!(height > my_latest_commitee_height, "{}", COMMITTEE_HEIGHT_MISMATCH);
 
         // swap committee
         self.beacons.insert(&height, &beacons);

@@ -1,6 +1,5 @@
 use crate::{errors::*, InteractRequest};
 use near_sdk::{env};
-use arrayref::{array_ref, array_refs};
 
 pub const WITHDRAW_METADATA: u8 = 158;
 pub const SWAP_BEACON_METADATA: u8 = 159;
