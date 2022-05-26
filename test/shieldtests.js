@@ -9,14 +9,14 @@ const fs = require('fs');
 const { keyStores, KeyPair } = nearAPI;
 const keyStore = new keyStores.InMemoryKeyStore();
 const PRIVATE_KEY =
-    "2wkhjNeyKBWnaeCPtrktGMGU4UGQqPKx59gpaWGPoUUPQLzwqdSPeAfF5ABMiy16PVrM3xP7icecpheYNsJa4R7h";
+    "3Nd1XkAmVQPZ5d1znwkeictfBDPKTd67yP89zC93nVpu6ruY4f5RC7KTbB518KmWxhFNCdFMExn5Mgm8DwXLTFeb";
 // creates a public / private key pair using the provided private key
 const keyPair = KeyPair.fromString(PRIVATE_KEY);
 console.log({keyPair});
 const { connect } = nearAPI;
 
 (async () => {
-    const pk58 = 'ed25519:3PSXhTci6Fyh6TmuZH5to8apvtMxw3kqanBbVAhAUcEf'
+    const pk58 = 'ed25519:5wbGqEmJuExCVCck6FLM5FqQRyyPabmBHpHtMbkZMUy1'
     const testAddress = nearAPI.utils.PublicKey.fromString(pk58).data.hexSlice();
 
     // adds the keyPair you created to keyStore
@@ -33,11 +33,11 @@ const { connect } = nearAPI;
     const account = await near.account(testAddress);
     console.log({testAddress});
     // const account = await near.account("incognito.bridge.testnet");
-    // // await account.createAccount(
-    // //     "example-account2.testnet", // new account name
-    // //     "8hSHprDq2StXwMtNd43wDTXQYsjXcD4MJTXQYsjXcc", // public key for new account
-    // //     "10000000000000000000" // initial balance for new account in yoctoNEAR
-    // // );
+    // await account.createAccount(
+    //     "example-account2.testnet", // new account name
+    //     "8hSHprDq2StXwMtNd43wDTXQYsjXcD4MJTXQYsjXcc", // public key for new account
+    //     "10000000000000000000" // initial balance for new account in yoctoNEAR
+    // );
 
     let balance = await account.getAccountBalance();
     console.log({balance});
@@ -45,7 +45,7 @@ const { connect } = nearAPI;
     // const response = await account.deployContract(fs.readFileSync('../target/wasm32-unknown-unknown/release/bridge.wasm'));
     // console.log(response);
     // const contractId = response.transaction_outcome.outcome.executor_id;
-    const contractId = "23770487361340580c3aea1a0a74fd3048aabd90746faafa4238c597b1dc280c";
+    const contractId = "496add2c24e17711d9512172901b5502df37e10493d247c371eb8dc3e4b173fc";
     console.log(contractId);
 
     const beacon1 = toHexString([64,206,253,84,56,206,63,162,157,152,148,80,198,23,66,245,43,1,207,238,9,144,161,139,131,44,146,136,74,242,22,220,187,130,145,153,93,114,117,199,108,190,233,244,53,240,247,48,207,19,94,245,14,171,207,124,157,177,173,139,253,237,36,168]);

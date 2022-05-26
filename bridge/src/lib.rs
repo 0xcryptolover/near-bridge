@@ -51,6 +51,7 @@ pub(crate) enum StorageKey {
     BeaconHeight,
     TokenAccountID,
     TokenUserAccountID,
+    TokenDecimals,
 }
 
 #[near_bindgen]
@@ -64,6 +65,8 @@ pub struct Vault {
     pub total_credit_amount: LookupMap<String, u128>,
     // total credit amount for each account
     pub credit_amount: LookupMap<(String, String), u128>,
+    // store token decimal
+    pub token_decimals: LookupMap<String, u8>,
 }
 
 // define the methods we'll use on ContractB
@@ -101,6 +104,7 @@ impl Vault {
             beacons: TreeMap::new(StorageKey::BeaconHeight),
             total_credit_amount: LookupMap::new(StorageKey::TokenAccountID),
             credit_amount: LookupMap::new(StorageKey::TokenUserAccountID),
+            token_decimals: LookupMap::new(StorageKey::TokenDecimals),
         };
         // insert beacon height and list in tree
         this.beacons.insert(&height, &beacons);
@@ -150,7 +154,7 @@ impl Vault {
             array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
         let meta_type = u8::from_be_bytes(*meta_type);
         let shard_id = u8::from_be_bytes(*shard_id);
-        let unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
+        let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
 
         // validate metatype and key provided
         if (meta_type != WITHDRAW_METADATA) || shard_id != 1 {
@@ -164,10 +168,15 @@ impl Vault {
         self.tx_burn.insert(&tx_id, &true);
 
         let account: AccountId = AccountId::try_from(hex::encode(receiver_key)).unwrap();
-
-        if hex::encode(token) == NEAR_ADDRESS {
+        let token_address = hex::encode(token);
+        if token_address == NEAR_ADDRESS {
+            unshield_amount = unshield_amount.checked_mul(1e15 as u128).unwrap();
             Promise::new(account).transfer(unshield_amount)
         } else {
+            let decimals = self.token_decimals.get(&token_address).unwrap();
+            if decimals > 9 {
+                unshield_amount = unshield_amount.checked_mul(u128::pow(10, decimals as u32 - 9)).unwrap()
+            }
             // todo: update account and token address
             let token: AccountId = AccountId::try_from(hex::encode(token)).unwrap();
             ext_ft::ft_transfer(
@@ -287,7 +296,7 @@ impl Vault {
     }
 
     /// fallbacks
-    pub fn fallback_deposit(&self, incognito_addr: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
+    pub fn fallback_deposit(&mut self, incognito_addr: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
         assert_eq!(env::promise_results_count(), 2, "This is a callback method");
 
         // handle the result from the second cross contract call this method is a callback for
@@ -323,6 +332,11 @@ impl Vault {
                     0,
                     Gas(5_000_000_000),
                 ).into();
+        }
+
+        let decimals_stored = self.token_decimals.get(&token.to_string()).unwrap_or_default();
+        if decimals_stored == 0 {
+            self.token_decimals.insert(&token.to_string(), &token_meta_data.decimals);
         }
 
         env::log_str(
