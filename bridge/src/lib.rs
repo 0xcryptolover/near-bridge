@@ -12,7 +12,7 @@ mod utils;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, PromiseOrValue, Gas, Promise};
+use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, Gas, Promise};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
@@ -83,7 +83,6 @@ pub trait VaultContract {
     fn fallback_deposit(
         &self,
         incognito_address: String,
-        account: AccountId,
         token: AccountId,
         amount: u128,
     );
@@ -308,7 +307,7 @@ impl Vault {
     }
 
     /// fallbacks
-    pub fn fallback_deposit(&mut self, incognito_address: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
+    pub fn fallback_deposit(&mut self, incognito_address: String, token: AccountId, amount: u128) {
         assert_eq!(env::promise_results_count(), 2, "This is a callback method");
 
         // handle the result from the second cross contract call this method is a callback for
@@ -336,14 +335,7 @@ impl Vault {
         }
 
         if vault_acc_balance.cmp(&(u64::MAX as u128)) == Ordering::Greater {
-            return ext_ft::ft_transfer(
-                    account,
-                    U128(amount),
-                    None,
-                    token,
-                    0,
-                    Gas(5_000_000_000),
-                ).into();
+            panic!("{}", VALUE_EXCEEDED)
         }
 
         let decimals_stored = self.token_decimals.get(&token.to_string()).unwrap_or_default();
@@ -356,7 +348,5 @@ impl Vault {
                 "{} {} {}",
                 incognito_address, token, emit_amount
             ).as_str());
-
-        PromiseOrValue::Value(U128(0))
     }
 }

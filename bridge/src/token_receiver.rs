@@ -24,7 +24,7 @@ impl FungibleTokenReceiver for Vault {
     #[allow(unreachable_code)]
     fn ft_on_transfer(
         &mut self,
-        sender_id: AccountId,
+        _sender_id: AccountId,
         amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
@@ -53,7 +53,6 @@ impl FungibleTokenReceiver for Vault {
                 ))
                 .then(ext_self::fallback_deposit(
                     incognito_address,
-                    sender_id,
                     token_in,
                     amount,
                     env::current_account_id().clone(),
