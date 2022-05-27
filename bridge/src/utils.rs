@@ -6,7 +6,7 @@ pub const SWAP_BEACON_METADATA: u8 = 159;
 pub const BURN_METADATA: u8 = 160;
 
 pub const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000001";
-pub const WITHDRAW_INST_LEN: usize = 1 + 1 + 32 + 32 + 32 + 32; // ignore last 32 bytes in instruction
+pub const WITHDRAW_INST_LEN: usize = 1 + 1 + 1 + 64 + 1 + 64 + 32 + 32; // ignore last 64 bytes in instruction
 pub const SWAP_COMMITTEE_INST_LEN: usize = 1 + 1 + 32 + 32 + 32;
 
 pub fn verify_inst(

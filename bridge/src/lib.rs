@@ -150,11 +150,17 @@ impl Vault {
         let inst = hex::decode(unshield_info.inst).unwrap_or_default();
         let inst_ = array_ref![inst, 0, WITHDRAW_INST_LEN];
         #[allow(clippy::ptr_offset_with_cast)]
-        let (meta_type, shard_id, _, token, _, receiver_key, _, unshield_amount, tx_id) =
-            array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
+        let (meta_type, shard_id, token_len, token, receiver_len, receiver_key, _, unshield_amount, tx_id) =
+            array_refs![inst_, 1, 1, 1, 64, 1, 64, 24, 8, 32];
         let meta_type = u8::from_be_bytes(*meta_type);
         let shard_id = u8::from_be_bytes(*shard_id);
         let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
+        let token_len = u8::from_be_bytes(*token_len);
+        let receiver_len = u8::from_be_bytes(*receiver_len);
+        let token = &token[..token_len as usize];
+        let token: String = String::from_utf8(token.to_vec()).unwrap_or_default();
+        let receiver_key = &receiver_key[..receiver_len as usize];
+        let receiver_key: String = String::from_utf8(receiver_key.to_vec()).unwrap_or_default();
 
         // validate metatype and key provided
         if (meta_type != WITHDRAW_METADATA) || shard_id != 1 {
@@ -178,7 +184,7 @@ impl Vault {
                 unshield_amount = unshield_amount.checked_mul(u128::pow(10, decimals as u32 - 9)).unwrap()
             }
             // todo: update account and token address
-            let token: AccountId = AccountId::try_from(hex::encode(token)).unwrap();
+            let token: AccountId = AccountId::try_from(token_address).unwrap();
             ext_ft::ft_transfer(
                 account,
                 U128(unshield_amount),
@@ -254,11 +260,17 @@ impl Vault {
         let inst = hex::decode(burn_info.inst).unwrap_or_default();
         let inst_ = array_ref![inst, 0, WITHDRAW_INST_LEN];
         #[allow(clippy::ptr_offset_with_cast)]
-        let (meta_type, shard_id, _, token, _, receiver_key, _, burn_amount, tx_id) =
-            array_refs![inst_, 1, 1, 12, 20, 12, 20, 24, 8, 32];
+        let (meta_type, shard_id, token_len, token, receiver_len, receiver_key, _, burn_amount, tx_id) =
+            array_refs![inst_, 1, 1, 1, 64, 1, 64, 24, 8, 32];
         let meta_type = u8::from_be_bytes(*meta_type);
         let shard_id = u8::from_be_bytes(*shard_id);
         let burn_amount = u128::from(u64::from_be_bytes(*burn_amount));
+        let token_len = u8::from_be_bytes(*token_len);
+        let receiver_len = u8::from_be_bytes(*receiver_len);
+        let token = &token[..token_len as usize];
+        let token: String = String::from_utf8(token.to_vec()).unwrap_or_default();
+        let receiver_key = &receiver_key[..receiver_len as usize];
+        let receiver_key: String = String::from_utf8(receiver_key.to_vec()).unwrap_or_default();
 
         // validate metatype and key provided
         if (meta_type != BURN_METADATA) || shard_id != 1 {
