@@ -308,7 +308,7 @@ impl Vault {
     }
 
     /// fallbacks
-    pub fn fallback_deposit(&mut self, incognito_addr: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
+    pub fn fallback_deposit(&mut self, incognito_address: String, account: AccountId, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
         assert_eq!(env::promise_results_count(), 2, "This is a callback method");
 
         // handle the result from the second cross contract call this method is a callback for
@@ -354,7 +354,7 @@ impl Vault {
         env::log_str(
             format!(
                 "{} {} {}",
-                incognito_addr, token, emit_amount
+                incognito_address, token, emit_amount
             ).as_str());
 
         PromiseOrValue::Value(U128(0))

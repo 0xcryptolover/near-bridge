@@ -24,8 +24,8 @@ impl FungibleTokenReceiver for Vault {
     #[allow(unreachable_code)]
     fn ft_on_transfer(
         &mut self,
-        _sender_id: AccountId,
-        value: U128,
+        sender_id: AccountId,
+        amount: U128,
         msg: String,
     ) -> PromiseOrValue<U128> {
         let token_in = env::predecessor_account_id();
@@ -39,7 +39,7 @@ impl FungibleTokenReceiver for Vault {
             TokenReceiverMessage::Deposit {
                 incognito_address
             } => {
-                let amount = value.0;
+                let amount = amount.0;
                 ext_ft::ft_metadata(
                     token_in.clone(),
                     0,
@@ -53,7 +53,7 @@ impl FungibleTokenReceiver for Vault {
                 ))
                 .then(ext_self::fallback_deposit(
                     incognito_address,
-                    _sender_id,
+                    sender_id,
                     token_in,
                     amount,
                     env::current_account_id().clone(),
