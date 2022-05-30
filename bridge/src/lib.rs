@@ -11,6 +11,7 @@ mod utils;
 
 use std::cmp::Ordering;
 use std::convert::TryFrom;
+use near_sdk::{serde_json};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, PromiseOrValue, Gas, Promise};
 use near_sdk::serde::{Deserialize, Serialize};
@@ -21,6 +22,7 @@ use crate::utils::{verify_inst};
 use arrayref::{array_refs, array_ref};
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 use near_sdk::json_types::U128;
+
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
 #[serde(crate = "near_sdk::serde")]
@@ -358,5 +360,39 @@ impl Vault {
             ).as_str());
 
         PromiseOrValue::Value(U128(0))
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    fn to_32_bytes(hex_str: &str) -> [u8; 32] {
+        let bytes = hex::decode(hex_str).unwrap();
+        let mut bytes_ = [0u8; 32];
+        bytes_.copy_from_slice(&bytes);
+        bytes_
+    }
+
+    #[test]
+    fn test_serialize() {
+        let msg_obj = InteractRequest {
+            inst: "cuongcute".to_string(),
+            height: 16,
+            inst_paths: vec![to_32_bytes("23abf9d3acf3fde6246cce9e392c2154ab8423d8d2e01053e74db7f6d17aea4f")],
+            inst_path_is_lefts: vec![false],
+            inst_root: to_32_bytes("45e6d8d759bc5993097236e5f2d17053969f0b769bb1d0f8e222b6c40a0f6af3"),
+            blk_data: to_32_bytes("eff9f595401e37992a3a1fb0c1908e0d4bb2105eae42c0ef6499483b991f2c91"),
+            indexes: vec![0, 1, 2, 3],
+            signatures: vec![
+                "3ba689cfbcbfe81d10f47c0becd911ece7fd1c99ce3bf84c61cf20f3bfc2979438251b39a913e934bd6b61def19fac8da98808cce9b8f428809885364a49d81c".to_string(),
+                "fbb1705370519af0e89fa86ced533123a8a33db842a3d90a7c8c69ee82ce20c44ecf63c0f1646d7f2d173b7d4dae99c16e29af1bedcc5ee1a88e15c132f27136".to_string(),
+                "0cb23956deaaf8070c9dbc36e2035d1b641112d8b75187c7ee834f1dd00adf165c2a88fc3a356c795f6e4df4cf52c81f091d7a4fde215dba1eec47768da7b7ae".to_string(),
+                "6801dc29a7d1784f57c511369f84d68f04630bc7afcaa2b92c03272af26430fb7b93aaae22ce4f44818acb3345db276252ef71c7442cf1fe94d1d230191208cb".to_string(),
+            ],
+            vs: vec![0, 0, 1, 1],
+        };
+        let msg_str = serde_json::to_string(&msg_obj).unwrap();
+        println!("{}", msg_str);
     }
 }

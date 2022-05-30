@@ -8,7 +8,7 @@ use crate::errors::*;
 use crate::*;
 
 /// Message parameters to receive via token function call.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(crate = "near_sdk::serde")]
 #[serde(untagged)]
 enum TokenReceiverMessage {
@@ -62,5 +62,28 @@ impl FungibleTokenReceiver for Vault {
                 )).into()
             }
         }
+    }
+}
+
+
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_serialize() {
+        let msg_obj: TokenReceiverMessage = TokenReceiverMessage::Deposit {
+            incognito_address: "my_address".to_string(),
+        };
+        let msg_str = serde_json::to_string(&msg_obj).unwrap();
+        println!("{}", msg_str);
+    }
+
+    #[test]
+    fn test_deserialize() {
+        let msg_str = r#"{"incognito_address":"my_address"}"#;
+        let msg_obj: TokenReceiverMessage = serde_json::from_str(&msg_str).unwrap();
+        println!("{:?}", msg_obj);
     }
 }
