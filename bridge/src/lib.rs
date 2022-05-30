@@ -190,7 +190,7 @@ impl Vault {
                 U128(unshield_amount),
                 None,
                 token,
-                0,
+                1,
                 Gas(5_000_000_000_000),
             ).into()
         }
