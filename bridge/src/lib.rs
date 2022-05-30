@@ -25,7 +25,7 @@ use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 use near_sdk::json_types::U128;
 
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "near_sdk::serde")]
 pub struct InteractRequest {
     // instruction in bytes
@@ -191,7 +191,7 @@ impl Vault {
                 None,
                 token,
                 0,
-                Gas(5_000_000_000),
+                Gas(5_000_000_000_000),
             ).into()
         }
     }
