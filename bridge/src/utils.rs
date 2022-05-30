@@ -1,8 +1,8 @@
 use crate::{errors::*, InteractRequest};
 use near_sdk::{env};
 
-pub const WITHDRAW_METADATA: u8 = 158;
-pub const SWAP_BEACON_METADATA: u8 = 159;
+pub const WITHDRAW_METADATA: u8 = 157;
+pub const SWAP_BEACON_METADATA: u8 = 158;
 pub const BURN_METADATA: u8 = 160;
 
 pub const NEAR_ADDRESS: &str = "0000000000000000000000000000000000000001";

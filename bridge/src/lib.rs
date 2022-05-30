@@ -9,8 +9,9 @@ mod token_receiver;
 mod errors;
 mod utils;
 
+use std::str;
 use std::cmp::Ordering;
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use near_sdk::{serde_json};
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
 use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, Gas, Promise, PromiseOrValue};
@@ -158,9 +159,9 @@ impl Vault {
         let mut unshield_amount = u128::from(u64::from_be_bytes(*unshield_amount));
         let token_len = u8::from_be_bytes(*token_len);
         let receiver_len = u8::from_be_bytes(*receiver_len);
-        let token = &token[..token_len as usize];
+        let token = &token[64 - token_len as usize..];
         let token: String = String::from_utf8(token.to_vec()).unwrap_or_default();
-        let receiver_key = &receiver_key[..receiver_len as usize];
+        let receiver_key = &receiver_key[64 - receiver_len as usize..];
         let receiver_key: String = String::from_utf8(receiver_key.to_vec()).unwrap_or_default();
 
         // validate metatype and key provided
@@ -174,18 +175,16 @@ impl Vault {
         }
         self.tx_burn.insert(&tx_id, &true);
 
-        let account: AccountId = AccountId::try_from(hex::encode(receiver_key)).unwrap();
-        let token_address = hex::encode(token);
-        if token_address == NEAR_ADDRESS {
+        let account: AccountId = receiver_key.try_into().unwrap();
+        if token == NEAR_ADDRESS {
             unshield_amount = unshield_amount.checked_mul(1e15 as u128).unwrap();
             Promise::new(account).transfer(unshield_amount)
         } else {
-            let decimals = self.token_decimals.get(&token_address).unwrap();
+            let decimals = self.token_decimals.get(&token).unwrap();
             if decimals > 9 {
                 unshield_amount = unshield_amount.checked_mul(u128::pow(10, decimals as u32 - 9)).unwrap()
             }
-            // todo: update account and token address
-            let token: AccountId = AccountId::try_from(token_address).unwrap();
+            let token: AccountId = token.try_into().unwrap();
             ext_ft::ft_transfer(
                 account,
                 U128(unshield_amount),
@@ -268,9 +267,9 @@ impl Vault {
         let burn_amount = u128::from(u64::from_be_bytes(*burn_amount));
         let token_len = u8::from_be_bytes(*token_len);
         let receiver_len = u8::from_be_bytes(*receiver_len);
-        let token = &token[..token_len as usize];
+        let token = &token[64 - token_len as usize..];
         let token: String = String::from_utf8(token.to_vec()).unwrap_or_default();
-        let receiver_key = &receiver_key[..receiver_len as usize];
+        let receiver_key = &receiver_key[64 - receiver_len as usize..];
         let receiver_key: String = String::from_utf8(receiver_key.to_vec()).unwrap_or_default();
 
         // validate metatype and key provided
