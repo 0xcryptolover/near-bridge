@@ -12,7 +12,7 @@ mod utils;
 use std::cmp::Ordering;
 use std::convert::TryFrom;
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, Gas, Promise};
+use near_sdk::{env, near_bindgen, BorshStorageKey, PanicOnDefault, ext_contract, PromiseResult, AccountId, Gas, Promise, PromiseOrValue};
 use near_sdk::serde::{Deserialize, Serialize};
 use near_sdk::collections::{LookupMap, TreeMap};
 use crate::errors::*;
@@ -307,7 +307,7 @@ impl Vault {
     }
 
     /// fallbacks
-    pub fn fallback_deposit(&mut self, incognito_address: String, token: AccountId, amount: u128) {
+    pub fn fallback_deposit(&mut self, incognito_address: String, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
         assert_eq!(env::promise_results_count(), 2, "This is a callback method");
 
         // handle the result from the second cross contract call this method is a callback for
@@ -348,5 +348,7 @@ impl Vault {
                 "{} {} {}",
                 incognito_address, token, emit_amount
             ).as_str());
+
+        PromiseOrValue::Value(U128(0))
     }
 }
