@@ -53,7 +53,6 @@ impl FungibleTokenReceiver for Vault {
                 ))
                 .then(ext_self::fallback_deposit(
                     incognito_address,
-                    sender_id,
                     token_in,
                     amount,
                     env::current_account_id().clone(),
