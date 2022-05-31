@@ -62,7 +62,7 @@ pub fn verify_inst(
 
 fn append_at_top(input: u128) -> Vec<u8>  {
     let mut  input_vec = input.to_be_bytes().to_vec();
-    for _ in 0..24 {
+    for _ in 0..16 {
         input_vec.insert(0, 0);
     }
 
