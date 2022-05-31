@@ -15,6 +15,7 @@ const SENDER_ADDRESS = "cuongcute.testnet";
 const keyPair = KeyPair.fromString(PRIVATE_KEY);
 console.log({keyPair});
 const { connect } = nearAPI;
+const axios = require('axios');
 
 (async () => {
     // adds the keyPair you created to keyStore
@@ -47,34 +48,50 @@ const { connect } = nearAPI;
         }
       );
 
-    unshieldInfo = {
-        inst: "9d0115000000000000000000000000000000000000000000000000000000000000000000000000000000000000006674302e63756f6e67637574652e746573746e657411000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000063756f6e67637574652e746573746e6574000000000000000000000000000000000000000000000000000000003b9aca00940860e23318c9abc38340a9f2dfae513aa1371958739c484feffccabe2771475308e0f98d4ad4b72e06600dc3e9e09f6e5f8baf8b84a46e168d0ac42dd4d8ff",
-        height: 304,
-        inst_paths: [
-            to32Bytes("82a8c4d7dcdcf1e28ec58e7218155c8f2e75cdc2aded968d63da53efb8848abb"),
+    let unshieldInfo = {};
+    try {
+        const burnProof = await axios.post(
+            "http://127.0.0.1:9334",
+            {
+                "jsonrpc": "1.0",
+                "method": "getnearburnproof",
+                "params": [
+                    "c6182a66fd38c4820cc3b9c2c856731a5df29d8bc8e106502c177a76d4ceb1db"
+                ],
+                "id": 1
+            }
+        );
+        let res = burnProof.data.Result;
+        unshieldInfo.inst = res.Instruction;
+        unshieldInfo.height = Number('0x' + res.BeaconHeight);
+        let inst_paths = [];
+        for (const inst_path of res.BeaconInstPath) {
+            inst_paths.push(to32Bytes(inst_path));
+        }
+        unshieldInfo.inst_paths = inst_paths;
+        unshieldInfo.inst_path_is_lefts = res.BeaconInstPathIsLeft;
+        unshieldInfo.inst_root = to32Bytes(res.BeaconInstRoot);
+        unshieldInfo.blk_data = to32Bytes(res.BeaconBlkData);
+        unshieldInfo.indexes = res.BeaconSigIdxs;
+        let s_r = [], v = [];
+        for (const signature of res.BeaconSigs) {
+            s_r.push(signature.slice(0, 128));
+            v.push(Number(signature.slice(128)));
+        }
+        unshieldInfo.signatures = s_r;
+        unshieldInfo.vs = v;
 
-        ],
-        inst_path_is_lefts: [
-            false,
-        ],
-        inst_root: to32Bytes("fd64d3bd7f578bbb58ee9088949d96f4186b04b3d4b5751ce0104399d7ba4b7c"),
-        blk_data: to32Bytes("b2f85d2ee41b2fc42a7e06dc90ca5ddec6d3b08e84a97519c9f9709315155681"),
-        indexes: [1, 2, 3],
-        signatures: [
-            "af503e8cc61c73d6ae5728d5b37d04ec7fa7aff190040cbcffc213c7e2046e721a8d3fe9c12e62e9802f1bedaf1d38b58ea11ed2e38ec4301dd798c5be4ae469",
-            "869f5225d790484190ec4bf5113dadc568e8232c90bb711909f3154ff54b477c3b96040e5d041e76dccad008c6453fdfbee8295119bf641f7b9bee8e0d79aa6d",
-            "c3622371e7355ab5e4f48097e0e39b435b444f0557b6269c55cd427aac932fb327f5592748f839bbb98666613ebcb1e7100ea02f26a2becb960ba1ef8d909460",
-        ],
-        vs: [1, 0, 0],
-    },
-    console.log({unshieldInfo: unshieldInfo});
+        console.log({unshieldInfo: unshieldInfo});
+    } catch (e) {
+        console.log(e);
+    }
       
     await contract.withdraw(
-            {
-                unshield_info: unshieldInfo,
-            },
-            "300000000000000",
-            "0"
+        {
+            unshield_info: unshieldInfo,
+        },
+        "300000000000000",
+        "0"
     );
 
 })();

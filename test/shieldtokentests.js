@@ -51,13 +51,13 @@ const { connect } = nearAPI;
       
 
     // make shield Near request
-    const incognitoAddress = "12sfD6DYsmYFGvZHbkmVhQiKyapWwshxKtMDZV51UFpXwaauCZ7Zyp69ctAQo3BJdKpZeZhVkFfCd8BgT6n4sMuRAhszpJ6pbwXct3Mr5kvCzDEgBz7h9mgoGuqwt83CjLCDuX7b7hP6gf9RWuPb";
+    const incognitoAddress = "12svfkP6w5UDJDSCwqH978PvqiqBxKmUnA9em9yAYWYJVRv7wuXY1qhhYpPAm4BDz2mLbFrRmdK3yRhnTqJCZXKHUmoi7NV83HCH2YFpctHNaDdkSiQshsjw2UFUuwdEvcidgaKmF3VJpY5f8RdN";
     await contract.ft_transfer_call(
             {
                 sender_id: "cuongcute.testnet", 
                 receiver_id: contractId, 
-                amount: "1000000000", 
-                msg: '{"incognito_address": "cuongcute"}'
+                amount: "10000000000",
+                msg: '{"incognito_address": "' + incognitoAddress + '"}'
             },
             "300000000000000",
             "1"

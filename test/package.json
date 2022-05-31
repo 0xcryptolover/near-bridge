@@ -9,6 +9,7 @@
   "author": "thach cuong",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.27.2",
     "fs": "0.0.1-security",
     "near-api-js": "^0.44.2"
   }
